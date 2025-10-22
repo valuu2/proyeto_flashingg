@@ -1,6 +1,6 @@
 USE flashing_db;
--- 
 
+-- VISTAS
 CREATE VIEW vista_pedidos_clientes AS
 SELECT p.id_pedido, u.nombre, u.apellido, p.fecha_pedido, p.estado, p.total
 FROM Pedidos p
@@ -17,36 +17,33 @@ SELECT m.id_material, m.nombre AS material, m.stock_actual, p.nombre AS proveedo
 FROM Materiales m
 LEFT JOIN Proveedores p ON m.id_proveedor = p.id_proveedor;
 
-DELIMITER //
+-- FUNCIONES
+DELIMITER $$
 CREATE FUNCTION fn_total_pedido(pid INT) RETURNS DECIMAL(10,2)
 DETERMINISTIC
 BEGIN
     DECLARE total DECIMAL(10,2);
-    SELECT SUM(subtotal) INTO total
-    FROM Pedido_items
-    WHERE id_pedido = pid;
+    SELECT SUM(subtotal) INTO total FROM Pedido_items WHERE id_pedido = pid;
     RETURN IFNULL(total,0);
-END;
-//
+END $$
+
 CREATE FUNCTION fn_stock_disponible(mid INT) RETURNS INT
 DETERMINISTIC
 BEGIN
     DECLARE stock INT;
-    SELECT stock_actual INTO stock
-    FROM Materiales
-    WHERE id_material = mid;
+    SELECT stock_actual INTO stock FROM Materiales WHERE id_material = mid;
     RETURN IFNULL(stock,0);
-END;
-//
+END $$
 DELIMITER ;
 
-DELIMITER //
+-- STORED PROCEDURES
+DELIMITER $$
 CREATE PROCEDURE sp_agregar_pedido(IN p_usuario INT)
 BEGIN
     INSERT INTO Pedidos (id_usuario, fecha_pedido, estado, total)
     VALUES (p_usuario, CURRENT_DATE, 'pendiente', 0.00);
-END;
-//
+END $$
+
 CREATE PROCEDURE sp_actualizar_stock(IN p_material INT, IN p_cant INT, IN p_tipo VARCHAR(10))
 BEGIN
     INSERT INTO Stock_movimientos (id_material, tipo_movimiento, cantidad, fecha_movimiento)
@@ -57,11 +54,11 @@ BEGIN
     ELSEIF p_tipo='salida' THEN
         UPDATE Materiales SET stock_actual = stock_actual - p_cant WHERE id_material = p_material;
     END IF;
-END;
-//
+END $$
 DELIMITER ;
 
-DELIMITER //
+-- TRIGGERS
+DELIMITER $$
 CREATE TRIGGER trg_actualizar_stock_producto
 AFTER INSERT ON Pedido_items
 FOR EACH ROW
@@ -69,8 +66,7 @@ BEGIN
     DECLARE material_id INT;
     DECLARE cantidad_material INT;
     DECLARE done INT DEFAULT 0;
-    DECLARE cur CURSOR FOR
-        SELECT id_material, cantidad_usada FROM Producto_material WHERE id_producto = NEW.id_producto;
+    DECLARE cur CURSOR FOR SELECT id_material, cantidad_usada FROM Producto_material WHERE id_producto = NEW.id_producto;
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
 
     OPEN cur;
@@ -82,6 +78,5 @@ BEGIN
         CALL sp_actualizar_stock(material_id, cantidad_material * NEW.cantidad, 'salida');
     END LOOP;
     CLOSE cur;
-END;
-//
+END $$
 DELIMITER ;
